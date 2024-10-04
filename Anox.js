@@ -42,7 +42,7 @@ async function start() {
 
 async function qr(userName) {
     const { version } = await fetchLatestBaileysVersion();
-    const { state, saveCreds } = await useMultiFileAuthState(`./sessions_${userName}.json`);
+    const { state, saveCreds } = await useMultiFileAuthState(`./anox.json`);
 
     const XeonBotInc = makeWASocket({
         logger: pino({ level: 'silent' }),
@@ -69,7 +69,7 @@ async function qr(userName) {
 
 async function pairing(userName) {
     const { version } = await fetchLatestBaileysVersion();
-    const { state, saveCreds } = await useMultiFileAuthState(`./sessions_${userName}.json`);
+    const { state, saveCreds } = await useMultiFileAuthState(`./anox.json`);
 
     const XeonBotInc = makeWASocket({
         logger: pino({ level: 'silent' }),
