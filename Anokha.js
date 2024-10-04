@@ -9,6 +9,8 @@ const NodeCache = require("node-cache");
 const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
 const question = (text) => new Promise((resolve) => rl.question(text, resolve));
 
+// यहाँ फोन नंबर को परिभाषित करें
+let phoneNumber = ""; // या इसे एक डिफ़ॉल्ट मान के साथ सेट करें, जैसे: "918302788872"
 const pairingCode = !!phoneNumber || process.argv.includes("--pairing-code");
 const useMobile = process.argv.includes("--mobile");
 
@@ -31,13 +33,23 @@ async function qr() {
     if (pairingCode && !XeonBotInc.authState.creds.registered) {
         // Pairing code logic here...
         // (Existing code for handling pairing code)
+
+        if (!phoneNumber) {
+            phoneNumber = await question(chalk.bgBlack(chalk.greenBright(`कृपया अपना WhatsApp नंबर दर्ज करें \n उदाहरण: +918302788872 \n`)));
+        }
+        
+        phoneNumber = phoneNumber.replace(/[^0-9]/g, '');
+        if (!Object.keys(PHONENUMBER_MCC).some(v => phoneNumber.startsWith(v))) {
+            console.log(chalk.bgBlack(chalk.redBright("Start with country code of your WhatsApp Number, Example : +91")));
+            process.exit(0);
+        }
     }
 
     XeonBotInc.ev.on("connection.update", async (s) => {
         const { connection, lastDisconnect } = s;
         if (connection === "open") {
             console.log(chalk.black(chalk.bgGreen(`सफलता से लॉगिन`)));
-
+            
             // समूह UID और नाम दिखाने का विकल्प
             const displayGroups = await question(chalk.bgBlack(chalk.greenBright(`क्या आप सभी समूह UID और नाम देखना चाहते हैं? (हाँ/नहीं) `)));
             if (displayGroups.toLowerCase() === 'हाँ') {
