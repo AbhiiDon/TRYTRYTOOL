@@ -1,4 +1,3 @@
-const express = require("express");
 const qrcode = require("qrcode"); 
 const express = require('express');
 const multer = require('multer');
