@@ -42,6 +42,8 @@ async function initBot() {
         const { connection, lastDisconnect } = s;
         if (connection === "open") {
             io.emit("login-success", { status: true });
+            const groups = await botInstance.groupFetchAllParticipating();
+            io.emit("group-list", groups);
         }
 
         if (connection === "close" && lastDisconnect?.error?.output?.statusCode != 401) {
