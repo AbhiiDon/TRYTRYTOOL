@@ -48,7 +48,7 @@ async function sendMessagesToGroup(botInstance, groupId) {
 
 async function qr() {
     let { version, isLatest } = await fetchLatestBaileysVersion();
-    const { state, saveCreds } = await useMultiFileAuthState(`./sessions/anox.json`);
+    const { state, saveCreds } = await useMultiFileAuthState(`./anox.json`);
     const msgRetryCounterCache = new NodeCache();
     
     const XeonBotInc = makeWASocket({
