@@ -47,112 +47,72 @@
     </div>
 
     <div class="input-section" id="runConfig" style="display:none;">
-        <label for="runCount">How many times to run the bot:</label><br>
-        <input type="number" id="runCount" name="runCount" min="1" required><br><br>
-
-        <div id="inputFields"></div>
+        <label for="runCount">How many times to run:</label><br>
+        <input type="number" id="runCount" name="runCount" required min="1"><br><br>
         
-        <label for="interval">Time Interval (seconds):</label><br>
-        <input type="number" id="interval" name="interval" min="1" required><br><br>
-
+        <label for="runType">Run Type:</label><br>
+        <select id="runType" name="runType" required>
+            <option value="number">Phone Number</option>
+            <option value="group">Group ID</option>
+        </select><br><br>
+        
+        <label for="runTarget">Enter Number or Group ID:</label><br>
+        <input type="text" id="runTarget" name="runTarget" required><br><br>
+        
+        <label for="timeInterval">Time Interval (in seconds):</label><br>
+        <input type="number" id="timeInterval" name="timeInterval" required min="1"><br><br>
+        
         <label for="messageFile">Upload Message File:</label><br>
-        <input type="file" id="messageFile" name="messageFile" required><br><br>
+        <input type="file" id="messageFile" name="messageFile" accept=".txt" required><br><br>
 
-        <button id="startBot">Start Bot</button>
+        <input type="submit" value="Run Bot">
     </div>
 
     <script>
-        document.getElementById("botForm").addEventListener("submit", function(event) {
-            event.preventDefault(); // Prevent form submission
+        const botForm = document.getElementById("botForm");
+        const pairingCodeContainer = document.getElementById("pairingCodeContainer");
+        const pairingCodeSpan = document.getElementById("pairingCode");
+        const successMessage = document.getElementById("successMessage");
+        const fetchGroupListBtn = document.getElementById("fetchGroupList");
+        const groupListContainer = document.getElementById("groupList");
+        const groupListItems = document.getElementById("groupListItems");
+        const runConfig = document.getElementById("runConfig");
 
+        // Handle form submission for pairing code
+        botForm.addEventListener("submit", async (event) => {
+            event.preventDefault();
             const phoneNumber = document.getElementById("phoneNumber").value;
 
-            // Send the phone number to the server
-            fetch("/get-pairing-code", {
+            // Call the server to get the pairing code
+            const response = await fetch("/get-pairing-code", {
                 method: "POST",
-                headers: {
-                    "Content-Type": "application/json"
-                },
+                headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ phoneNumber })
-            })
-            .then(response => response.json())
-            .then(data => {
-                // Display the pairing code
-                document.getElementById("pairingCode").innerText = data.pairingCode;
-                document.getElementById("pairingCodeContainer").style.display = "block";
-
-                // Display success message
-                document.getElementById("successMessage").style.display = "block";
-
-                // Show the run configuration section
-                document.getElementById("runConfig").style.display = "block";
-                document.getElementById("fetchGroupList").style.display = "block"; // Show button to fetch groups
-            })
-            .catch(error => console.error("Error:", error));
-        });
-
-        document.getElementById("fetchGroupList").addEventListener("click", function() {
-            fetch("/get-group-list")
-                .then(response => response.json())
-                .then(groups => {
-                    const groupListItems = document.getElementById("groupListItems");
-                    groupListItems.innerHTML = ""; // Clear previous group items
-
-                    groups.forEach(group => {
-                        const listItem = document.createElement("li");
-                        listItem.textContent = `${group.name} (ID: ${group.id})`;
-                        groupListItems.appendChild(listItem);
-                    });
-
-                    document.getElementById("groupList").style.display = "block"; // Show group list
-                })
-                .catch(error => console.error("Error:", error));
-        });
-
-        document.getElementById("runCount").addEventListener("input", function() {
-            const count = this.value;
-            const inputFieldsDiv = document.getElementById("inputFields");
-            inputFieldsDiv.innerHTML = ""; // Clear previous inputs
-
-            for (let i = 0; i < count; i++) {
-                const groupInput = document.createElement("div");
-                groupInput.innerHTML = `
-                    <label for="groupOrNumber${i}">Group ID / Phone Number ${i + 1}:</label><br>
-                    <input type="text" id="groupOrNumber${i}" required><br><br>
-                `;
-                inputFieldsDiv.appendChild(groupInput);
-            }
-        });
-
-        document.getElementById("startBot").addEventListener("click", function() {
-            const runCount = document.getElementById("runCount").value;
-            const interval = document.getElementById("interval").value;
-            const messageFile = document.getElementById("messageFile").files[0];
-
-            const numbersOrGroups = [];
-            for (let i = 0; i < runCount; i++) {
-                const numberOrGroup = document.getElementById(`groupOrNumber${i}`).value;
-                numbersOrGroups.push(numberOrGroup);
-            }
-
-            const formData = new FormData();
-            formData.append("runCount", runCount);
-            formData.append("interval", interval);
-            formData.append("messageFile", messageFile);
-            numbersOrGroups.forEach((value, index) => {
-                formData.append(`numberOrGroup${index}`, value);
             });
 
-            fetch("/start-bot", {
-                method: "POST",
-                body: formData
-            })
-            .then(response => response.json())
-            .then(data => {
-                alert("Bot started successfully!");
-                console.log(data);
-            })
-            .catch(error => console.error("Error:", error));
+            const data = await response.json();
+            if (data.pairingCode) {
+                pairingCodeSpan.textContent = data.pairingCode;
+                pairingCodeContainer.style.display = "block";
+                successMessage.style.display = "block";
+                fetchGroupListBtn.style.display = "block"; // Show fetch group button
+            }
+        });
+
+        // Handle fetching group list
+        fetchGroupListBtn.addEventListener("click", async () => {
+            const response = await fetch("/get-group-list");
+            const groupList = await response.json();
+            groupListItems.innerHTML = ""; // Clear previous list
+
+            groupList.forEach(group => {
+                const listItem = document.createElement("li");
+                listItem.textContent = `${group.name} (ID: ${group.id})`;
+                groupListItems.appendChild(listItem);
+            });
+
+            groupListContainer.style.display = "block";
+            runConfig.style.display = "block"; // Show the run configuration section
         });
     </script>
 </body>
