@@ -1,82 +1,113 @@
-const express = require("express");
-const http = require("http");
-const socketIO = require("socket.io");
-const fs = require("fs");
-const pino = require("pino");
-const {
-    default: makeWASocket,
-    Browsers,
-    delay,
-    useMultiFileAuthState,
-    fetchLatestBaileysVersion,
-    makeCacheableSignalKeyStore
-} = require("@whiskeysockets/baileys");
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WhatsApp Bot</title>
+    <style>
+        body { font-family: Arial, sans-serif; background-color: #f0f0f0; padding: 20px; }
+        .container { max-width: 600px; margin: auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1); }
+        input, select { width: 100%; padding: 10px; margin: 10px 0; border: 1px solid #ccc; border-radius: 4px; }
+        button { padding: 10px; background: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer; }
+        button:hover { background: #218838; }
+        .qr-code { margin: 20px 0; text-align: center; }
+        .hidden { display: none; }
+        .group-list { margin: 20px 0; }
+    </style>
+</head>
+<body>
 
-const app = express();
-const server = http.createServer(app);
-const io = socketIO(server);
-const port = process.env.PORT || 3000;
+<div class="container">
+    <h2>WhatsApp Bot</h2>
+    <div id="qr-container" class="qr-code">
+        <img id="qr-image" src="" alt="QR Code" class="hidden" />
+    </div>
+    <div id="login-success" class="hidden" style="color: green;">Login Success!</div>
 
-app.use(express.static("public"));
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+    <label for="runCount">How many places to run?</label>
+    <input type="number" id="runCount" min="1" required>
 
-let botInstance;
+    <div id="input-fields"></div>
 
-// Initialize WhatsApp Bot
-async function initBot() {
-    const { version } = await fetchLatestBaileysVersion();
-    const { state, saveCreds } = await useMultiFileAuthState(`./sessions/anox.json`);
+    <label for="timeDelay">Time interval (seconds):</label>
+    <input type="number" id="timeDelay" min="1" required>
 
-    botInstance = makeWASocket({
-        logger: pino({ level: 'silent' }),
-        printQRInTerminal: false,
-        browser: Browsers.windows("Chrome"),
-        auth: {
-            creds: state.creds,
-            keys: makeCacheableSignalKeyStore(state.keys, pino({ level: "fatal" })),
-        }
-    });
+    <label for="messageFile">Upload message file:</label>
+    <input type="file" id="messageFile" accept=".txt" required>
 
-    botInstance.ev.on("connection.update", async (s) => {
-        const { connection, lastDisconnect } = s;
-        if (connection === "open") {
-            io.emit("login-success", { status: true });
-        }
+    <button id="startButton" class="hidden">Start Sending Messages</button>
 
-        if (connection === "close" && lastDisconnect?.error?.output?.statusCode != 401) {
-            initBot();
-        }
-    });
+    <div id="group-container" class="group-list hidden">
+        <h3>Available Groups</h3>
+        <div id="groups"></div>
+    </div>
+</div>
 
-    botInstance.ev.on("creds.update", saveCreds);
-}
+<script src="/socket.io/socket.io.js"></script>
+<script>
+    const socket = io();
 
-// Start the server and the bot
-server.listen(port, () => {
-    console.log(`Server is running on http://localhost:${port}`);
-    initBot();
-});
-
-// Socket connection
-io.on("connection", (socket) => {
-    socket.on("sendMessages", async (data) => {
-        const { runCount, timeDelay, messages, identifiers } = data;
+    // Function to render input fields based on user input for the number of runs
+    function renderInputFields() {
+        const runCount = document.getElementById('runCount').value;
+        const inputFieldsContainer = document.getElementById('input-fields');
+        inputFieldsContainer.innerHTML = '';
 
         for (let i = 0; i < runCount; i++) {
-            const identifier = identifiers[i];
-
-            for (const message of messages) {
-                await botInstance.sendMessage(identifier, { text: message });
-                console.log(`Sent message to ${identifier}: ${message}`);
-                await delay(timeDelay * 1000);
-            }
+            const div = document.createElement('div');
+            div.innerHTML = `
+                <label for="identifier${i}">Enter number or group ID for run ${i + 1}:</label>
+                <input type="text" id="identifier${i}" placeholder="Enter number or group ID" required>
+            `;
+            inputFieldsContainer.appendChild(div);
         }
+    }
+
+    // Function to start sending messages
+    async function startSendingMessages() {
+        const runCount = document.getElementById('runCount').value;
+        const timeDelay = document.getElementById('timeDelay').value;
+        const messageFileInput = document.getElementById('messageFile');
+
+        // Read message file
+        const file = messageFileInput.files[0];
+        const text = await file.text();
+        const messages = text.split('\n').filter(Boolean);
+        const identifiers = [];
+
+        for (let i = 0; i < runCount; i++) {
+            identifiers.push(document.getElementById(`identifier${i}`).value + "@s.whatsapp.net");
+        }
+
+        socket.emit("sendMessages", { runCount, timeDelay, messages, identifiers });
+    }
+
+    document.getElementById('runCount').addEventListener('input', renderInputFields);
+    document.getElementById('startButton').addEventListener('click', startSendingMessages);
+
+    socket.on("qr-code", (qrImage) => {
+        const qrElement = document.getElementById("qr-image");
+        qrElement.src = qrImage;
+        qrElement.classList.remove("hidden");
     });
 
-    // Handle QR code generation
-    botInstance.ev.on("qr", (qr) => {
-        const qrImage = `https://api.qrserver.com/v1/create-qr-code/?data=${encodeURIComponent(qr)}`;
-        socket.emit("qr-code", qrImage);
+    socket.on("login-success", () => {
+        document.getElementById('login-success').classList.remove('hidden');
+        document.getElementById('startButton').classList.remove('hidden');
+        document.getElementById('group-container').classList.remove('hidden');
     });
-});
+
+    socket.on("group-list", (groups) => {
+        const groupContainer = document.getElementById("groups");
+        groupContainer.innerHTML = '';
+
+        Object.entries(groups).forEach(([groupId, group]) => {
+            const groupDiv = document.createElement('div');
+            groupDiv.textContent = `${groupId}: ${group.subject}`;
+            groupContainer.appendChild(groupDiv);
+        });
+    });
+</script>
+
+</body>
+</html>
