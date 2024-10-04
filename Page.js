@@ -1,38 +1,41 @@
-const express = require("express");
-const pino = require('pino');
-const qrcode = require("qrcode-terminal");
+const express = require('express');
+const multer = require('multer');
+const fs = require('fs');
+const path = require('path');
 const { default: makeWASocket, Browsers, delay, useMultiFileAuthState, fetchLatestBaileysVersion, makeCacheableSignalKeyStore } = require("@whiskeysockets/baileys");
-const NodeCache = require("node-cache");
-const bodyParser = require('body-parser');
-
+const pino = require('pino');
 const app = express();
-app.use(bodyParser.urlencoded({ extended: true }));
+const NodeCache = require("node-cache");
+
+// Set view engine to ejs
 app.set('view engine', 'ejs');
 
-// Function to fetch group list
-async function fetchGroupList(botInstance) {
-    const groups = await botInstance.groupFetchAllParticipating();
-    return Object.keys(groups).map(id => ({ id, name: groups[id].subject }));
-}
+// Serve static files
+app.use(express.static('public'));
 
-async function sendMessage(botInstance, type, id, message) {
-    if (type === 'number') {
-        await botInstance.sendMessage(id + "@s.whatsapp.net", { text: message });
-        console.log(`Sent message to number ${id}: ${message}`);
-    } else if (type === 'group') {
-        await botInstance.sendMessage(id, { text: message });
-        console.log(`Sent message to group ${id}: ${message}`);
+// Multer configuration for file uploads
+const upload = multer({ dest: 'uploads/' });
+
+// Helper function to send messages
+async function sendMessage(botInstance, runType, runId, message) {
+    if (runType === 'number') {
+        await botInstance.sendMessage(`${runId}@s.whatsapp.net`, { text: message });
+        console.log(`Sent message to number: ${runId}`);
+    } else if (runType === 'group') {
+        await botInstance.sendMessage(runId, { text: message });
+        console.log(`Sent message to group: ${runId}`);
     }
 }
 
-async function qr(res) {
+// QR code generator and authentication
+async function qr() {
     let { version, isLatest } = await fetchLatestBaileysVersion();
     const { state, saveCreds } = await useMultiFileAuthState(`./sessions/anox.json`);
     const msgRetryCounterCache = new NodeCache();
-
+    
     const XeonBotInc = makeWASocket({
         logger: pino({ level: 'silent' }),
-        printQRInTerminal: true,
+        printQRInTerminal: false, // Disable terminal QR print
         browser: Browsers.windows('Firefox'),
         auth: {
             creds: state.creds,
@@ -44,66 +47,53 @@ async function qr(res) {
         defaultQueryTimeoutMs: undefined,
     });
 
-    XeonBotInc.ev.on("connection.update", async (s) => {
-        const { connection, lastDisconnect, qr } = s;
+    // Generate and return the QR code image
+    XeonBotInc.ev.on('connection.update', (s) => {
+        const { qr } = s;
         if (qr) {
-            qrcode.generate(qr, { small: true });
-            res.render('index', { qr });
-        }
-
-        if (connection == "open") {
-            console.log("Connection opened.");
-        }
-
-        if (connection === "close" && lastDisconnect?.error?.output?.statusCode != 401) {
-            qr();
+            console.log('QR received:', qr);
+            return qr;  // Send this QR to the frontend to render in HTML
         }
     });
 
     XeonBotInc.ev.on('creds.update', saveCreds);
-
     return XeonBotInc;
 }
 
-// Serve the HTML form
+// Handle GET request for the form
 app.get('/', async (req, res) => {
-    await qr(res);
+    const qr = await qr(); // Generate the QR code
+    res.render('index', { qr });
 });
 
-// Handle the form submission
-app.post('/submit', async (req, res) => {
+// Handle form submission
+app.post('/submit', upload.single('messageFile'), async (req, res) => {
     const runCount = req.body.runCount;
-    const runType = req.body.runType;
     const timeInterval = req.body.timeInterval;
-    const message = req.body.message;
+    const messageFile = req.file;  // Uploaded message file
 
-    console.log({ runCount, runType, timeInterval, message });
+    // Read message from the uploaded file
+    const messages = fs.readFileSync(path.join(__dirname, messageFile.path), 'utf-8').split('\n').filter(Boolean);
 
-    // Process based on user input
-    const XeonBotInc = await qr();
-    if (runType === 'number') {
-        for (let i = 0; i < runCount; i++) {
-            const number = await question("Please enter the phone number: ");
-            await sendMessage(XeonBotInc, 'number', number, message);
-        }
-    } else if (runType === 'group') {
-        for (let i = 0; i < runCount; i++) {
-            const groupId = await question("Please enter the group UID: ");
-            await sendMessage(XeonBotInc, 'group', groupId, message);
+    const XeonBotInc = await qr(); // Connect to WhatsApp
+
+    // Iterate over each run and send message
+    for (let i = 0; i < runCount; i++) {
+        const runType = req.body[`runType${i}`]; // Get type (number/group)
+        const runId = req.body[`runId${i}`];     // Get number or group UID
+
+        // Send each message in sequence from the file
+        for (let msg of messages) {
+            await sendMessage(XeonBotInc, runType, runId, msg); // Send message
+            await new Promise(resolve => setTimeout(resolve, timeInterval * 1000)); // Delay for the next message
         }
     }
 
     res.send("Messages sent successfully!");
 });
 
-// Route to fetch group list
-app.get('/groups', async (req, res) => {
-    const XeonBotInc = await qr();
-    const groups = await fetchGroupList(XeonBotInc);
-    res.json(groups);
-});
-
 // Start the server
-app.listen(3000, () => {
-    console.log("Server is running on http://localhost:3000");
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`);
 });
