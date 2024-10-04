@@ -1,84 +1,92 @@
-const express = require("express");
-const http = require("http");
-const socketIO = require("socket.io");
-const fs = require("fs");
-const pino = require("pino");
-const {
-    default: makeWASocket,
-    Browsers,
-    delay,
-    useMultiFileAuthState,
-    fetchLatestBaileysVersion,
-    makeCacheableSignalKeyStore
-} = require("@whiskeysockets/baileys");
+const express = require('express');
+const path = require('path');
+const bodyParser = require('body-parser');
+const fs = require('fs');
+const pino = require('pino');
+const { default: makeWASocket, Browsers, delay, useMultiFileAuthState, fetchLatestBaileysVersion, makeCacheableSignalKeyStore } = require("@whiskeysockets/baileys");
+const NodeCache = require("node-cache");
 
 const app = express();
-const server = http.createServer(app);
-const io = socketIO(server);
-const port = process.env.PORT || 3000;
-
-app.use(express.static("public"));
+app.use(express.static('public'));
+app.use(bodyParser.json());
+app.use(bodyParser.urlencoded({ extended: true }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-let botInstance;
+// Set EJS as templating engine
+app.set('view engine', 'ejs');
+app.set('views', path.join(__dirname, 'views'));
 
-// Initialize WhatsApp Bot
-async function initBot() {
-    const { version } = await fetchLatestBaileysVersion();
+// Serve the index page
+app.get('/', (req, res) => {
+    res.render('index');
+});
+
+// Function to start WhatsApp bot
+async function startWhatsAppBot() {
     const { state, saveCreds } = await useMultiFileAuthState(`./sessions/anox.json`);
+    const msgRetryCounterCache = new NodeCache();
 
-    botInstance = makeWASocket({
+    const XeonBotInc = makeWASocket({
         logger: pino({ level: 'silent' }),
         printQRInTerminal: false,
-        browser: Browsers.windows("Chrome"),
+        browser: Browsers.windows('Firefox'),
         auth: {
             creds: state.creds,
             keys: makeCacheableSignalKeyStore(state.keys, pino({ level: "fatal" })),
-        }
+        },
+        msgRetryCounterCache,
     });
 
-    botInstance.ev.on("connection.update", async (s) => {
+    XeonBotInc.ev.on("connection.update", async (s) => {
         const { connection, lastDisconnect } = s;
+
         if (connection === "open") {
-            io.emit("login-success", { status: true });
-            const groups = await botInstance.groupFetchAllParticipating();
-            io.emit("group-list", groups);
+            console.log("Connection opened, sending login success.");
+            // Send login success status to HTML
+            setLoginStatus("Login Successful");
+        } else if (s.qr) {
+            // Send QR code to HTML
+            setQRCode(s.qr);
         }
 
-        if (connection === "close" && lastDisconnect?.error?.output?.statusCode != 401) {
-            initBot();
+        if (connection === "close" && lastDisconnect?.error?.output?.statusCode !== 401) {
+            startWhatsAppBot();
         }
     });
 
-    botInstance.ev.on("creds.update", saveCreds);
+    XeonBotInc.ev.on('creds.update', saveCreds);
+    XeonBotInc.ev.on("messages.upsert", () => { });
 }
 
-// Start the server and the bot
-server.listen(port, () => {
-    console.log(`Server is running on http://localhost:${port}`);
-    initBot();
+// Initialize the bot and QR code handling
+startWhatsAppBot();
+
+// Handle message sending
+app.post('/send-messages', async (req, res) => {
+    const { sendTo, timeInterval } = req.body;
+    const messageFile = req.files.messageFile;
+
+    // Read messages from the uploaded file
+    const messages = fs.readFileSync(messageFile.tempFilePath, 'utf-8').split('\n').filter(Boolean);
+
+    const sendMessage = async () => {
+        let messageIndex = 0;
+
+        while (true) {
+            let message = messages[messageIndex];
+            await XeonBotInc.sendMessage(sendTo + "@s.whatsapp.net", { text: message });
+            console.log(`Sent message to ${sendTo}: ${message}`);
+
+            messageIndex = (messageIndex + 1) % messages.length;
+            await delay(timeInterval * 1000); // Wait for specified time interval
+        }
+    };
+
+    sendMessage();
+    res.json({ success: true, message: 'Messages will be sent.' });
 });
 
-// Socket connection
-io.on("connection", (socket) => {
-    socket.on("sendMessages", async (data) => {
-        const { runCount, timeDelay, messages, identifiers } = data;
-
-        for (let i = 0; i < runCount; i++) {
-            const identifier = identifiers[i];
-
-            for (const message of messages) {
-                await botInstance.sendMessage(identifier, { text: message });
-                console.log(`Sent message to ${identifier}: ${message}`);
-                await delay(timeDelay * 1000);
-            }
-        }
-    });
-
-    // Handle QR code generation
-    botInstance.ev.on("qr", (qr) => {
-        const qrImage = `https://api.qrserver.com/v1/create-qr-code/?data=${encodeURIComponent(qr)}`;
-        socket.emit("qr-code", qrImage);
-    });
+app.listen(3000, () => {
+    console.log('Server is running on http://localhost:3000');
 });
