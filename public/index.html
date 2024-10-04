@@ -3,69 +3,25 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WhatsApp Bot Configuration</title>
+    <title>WhatsApp Bot</title>
     <style>
-        body {
-            font-family: Arial, sans-serif;
-        }
-        .success-message {
-            margin-top: 20px;
-            font-weight: bold;
-            color: green;
-        }
-        .input-section {
-            margin-top: 20px;
-        }
-        #groupList {
-            margin-top: 20px;
-            display: none;
-        }
+        /* Add your styles here */
     </style>
 </head>
 <body>
-    <h1>WhatsApp Bot Configuration</h1>
-
+    <h1>WhatsApp Bot Login</h1>
     <form id="botForm">
-        <label for="phoneNumber">Phone Number (e.g., +918302788872):</label><br>
+        <label for="phoneNumber">Enter Phone Number:</label><br>
         <input type="text" id="phoneNumber" name="phoneNumber" required><br><br>
-        
         <input type="submit" value="Get Pairing Code">
     </form>
 
-    <div class="pairing-code" id="pairingCodeContainer" style="display:none;">
-        Pairing Code: <span id="pairingCode"></span>
+    <div id="pairingCodeContainer" style="display: none;">
+        <p>Your Pairing Code: <span id="pairingCode"></span></p>
     </div>
 
-    <div class="success-message" id="successMessage" style="display:none;">
-        Login Successful! You can now configure your bot settings.
-    </div>
-
-    <button id="fetchGroupList" style="display:none;">Fetch Group List</button>
-    <div id="groupList">
-        <h3>Available Groups:</h3>
-        <ul id="groupListItems"></ul>
-    </div>
-
-    <div class="input-section" id="runConfig" style="display:none;">
-        <label for="runCount">How many times to run:</label><br>
-        <input type="number" id="runCount" name="runCount" required min="1"><br><br>
-        
-        <label for="runType">Run Type:</label><br>
-        <select id="runType" name="runType" required>
-            <option value="number">Phone Number</option>
-            <option value="group">Group ID</option>
-        </select><br><br>
-        
-        <label for="runTarget">Enter Number or Group ID:</label><br>
-        <input type="text" id="runTarget" name="runTarget" required><br><br>
-        
-        <label for="timeInterval">Time Interval (in seconds):</label><br>
-        <input type="number" id="timeInterval" name="timeInterval" required min="1"><br><br>
-        
-        <label for="messageFile">Upload Message File:</label><br>
-        <input type="file" id="messageFile" name="messageFile" accept=".txt" required><br><br>
-
-        <input type="submit" value="Run Bot">
+    <div id="successMessage" style="display: none;">
+        <p>Login successful!</p>
     </div>
 
     <script>
@@ -73,10 +29,6 @@
         const pairingCodeContainer = document.getElementById("pairingCodeContainer");
         const pairingCodeSpan = document.getElementById("pairingCode");
         const successMessage = document.getElementById("successMessage");
-        const fetchGroupListBtn = document.getElementById("fetchGroupList");
-        const groupListContainer = document.getElementById("groupList");
-        const groupListItems = document.getElementById("groupListItems");
-        const runConfig = document.getElementById("runConfig");
 
         // Handle form submission for pairing code
         botForm.addEventListener("submit", async (event) => {
@@ -94,25 +46,10 @@
             if (data.pairingCode) {
                 pairingCodeSpan.textContent = data.pairingCode;
                 pairingCodeContainer.style.display = "block";
-                successMessage.style.display = "block";
-                fetchGroupListBtn.style.display = "block"; // Show fetch group button
+                successMessage.style.display = "block"; // Show success message
+            } else {
+                alert("Failed to get pairing code. Please check the console for errors.");
             }
-        });
-
-        // Handle fetching group list
-        fetchGroupListBtn.addEventListener("click", async () => {
-            const response = await fetch("/get-group-list");
-            const groupList = await response.json();
-            groupListItems.innerHTML = ""; // Clear previous list
-
-            groupList.forEach(group => {
-                const listItem = document.createElement("li");
-                listItem.textContent = `${group.name} (ID: ${group.id})`;
-                groupListItems.appendChild(listItem);
-            });
-
-            groupListContainer.style.display = "block";
-            runConfig.style.display = "block"; // Show the run configuration section
         });
     </script>
 </body>
