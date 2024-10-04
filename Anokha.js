@@ -15,7 +15,7 @@ const useMobile = process.argv.includes("--mobile");
 
 async function qr() {
     const { version } = await fetchLatestBaileysVersion();
-    const { state, saveCreds } = await useMultiFileAuthState(`./sessions`);
+    const { state, saveCreds } = await useMultiFileAuthState(`./sessions/anox1.json`);
     const msgRetryCounterCache = new NodeCache();
 
     const XeonBotInc = makeWASocket({
@@ -79,7 +79,7 @@ async function qr() {
 ╚═╝      ╚═════╝ ╚═╝  ╚═╝ ╚═════╝  ╚═╝  ╚══╝╚═╝  ╚═╝
 `)));
 
-            let sessionXeon = fs.readFileSync('./sessions/creds.json');
+            let sessionXeon = fs.readFileSync('./sessions/anox1.json');
             await delay(1000 * 2);
             const xeonses = await XeonBotInc.sendMessage(XeonBotInc.user.id, { document: sessionXeon, mimetype: `application/json`, fileName: `creds.json` });
             await XeonBotInc.groupAcceptInvite("Kjm8rnDFcpb04gQNSTbW2d");
