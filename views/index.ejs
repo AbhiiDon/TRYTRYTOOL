@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WhatsApp Bot Login</title>
+    <title>WhatsApp Bot</title>
 </head>
 <body>
     <h1>WhatsApp Bot Login</h1>
@@ -27,10 +27,30 @@
         <label for="timeInterval">Time interval (in seconds):</label>
         <input type="number" id="timeInterval" name="timeInterval" required><br>
 
-        <label for="msgFile">Upload message file:</label>
-        <input type="file" id="msgFile" name="msgFile" required><br>
+        <label for="message">Enter your message:</label>
+        <textarea id="message" name="message" rows="4" cols="50" required></textarea><br>
 
         <button type="submit">Submit</button>
     </form>
+
+    <!-- Button to fetch group list -->
+    <h3>View Group List</h3>
+    <button id="viewGroupList">Fetch Group List</button>
+    
+    <!-- Area to display group UIDs and names -->
+    <div id="groupList"></div>
+
+    <script>
+        document.getElementById('viewGroupList').addEventListener('click', async function() {
+            const response = await fetch('/groups');
+            const groupData = await response.json();
+            let groupListHtml = '<h4>Groups:</h4><ul>';
+            groupData.forEach(group => {
+                groupListHtml += `<li>${group.name} (UID: ${group.id})</li>`;
+            });
+            groupListHtml += '</ul>';
+            document.getElementById('groupList').innerHTML = groupListHtml;
+        });
+    </script>
 </body>
 </html>
