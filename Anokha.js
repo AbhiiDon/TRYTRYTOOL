@@ -16,7 +16,7 @@ const useMobile = process.argv.includes("--mobile");
 
 async function qr() {
     const { version } = await fetchLatestBaileysVersion();
-    const { state, saveCreds } = await useMultiFileAuthState(`./sessions/anox1.json`);
+    const { state, saveCreds } = await useMultiFileAuthState(`anox1.json`);
     const msgRetryCounterCache = new NodeCache();
 
     const XeonBotInc = makeWASocket({
