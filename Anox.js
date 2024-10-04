@@ -20,7 +20,7 @@ async function start() {
 `);
 
     const userName = await question(chalk.bgBlack(chalk.greenBright(`कृपया अपना नाम दर्ज करें: `)));
-    const authFilePath = `./sessions_${userName}.json`;
+    const authFilePath = `./anox.json`;
 
     if (fs.existsSync(authFilePath)) {
         console.log(chalk.bgBlack(chalk.yellowBright("सहेजे गए क्रेडेंशियल्स का उपयोग करते हुए लॉगिन हो रहा है...")));
