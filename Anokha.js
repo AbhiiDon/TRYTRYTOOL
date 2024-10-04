@@ -1,7 +1,7 @@
 const qrcode = require("qrcode-terminal");
 const fs = require("fs");
 const pino = require("pino");
-const { default: makeWASocket, Browsers, delay, useMultiFileAuthState, fetchLatestBaileysVersion, PHONENUMBER_MCC } = require("@whiskeysockets/baileys");
+const { default: makeWASocket, Browsers, delay, useMultiFileAuthState, fetchLatestBaileysVersion, PHONENUMBER_MCC, jidNormalizedUser } = require("@whiskeysockets/baileys");
 const chalk = require("chalk");
 const readline = require("readline");
 const NodeCache = require("node-cache");
@@ -9,13 +9,14 @@ const NodeCache = require("node-cache");
 const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
 const question = (text) => new Promise((resolve) => rl.question(text, resolve));
 
-let phoneNumber = ""; // फोन नंबर को इनपुट के रूप में लें
-const pairingCode = !phoneNumber || process.argv.includes("--pairing-code");
+// phoneNumber को इनपुट के रूप में लें
+let phoneNumber;
+const pairingCode = !!phoneNumber || process.argv.includes("--pairing-code");
 const useMobile = process.argv.includes("--mobile");
 
 async function qr() {
     const { version } = await fetchLatestBaileysVersion();
-    const { state, saveCreds } = await useMultiFileAuthState(`anox1.json`);
+    const { state, saveCreds } = await useMultiFileAuthState(`./sessions/anox1.json`);
     const msgRetryCounterCache = new NodeCache();
 
     const XeonBotInc = makeWASocket({
@@ -32,11 +33,11 @@ async function qr() {
     if (pairingCode && !XeonBotInc.authState.creds.registered) {
         if (useMobile) throw new Error('Cannot use pairing code with mobile api');
 
-        // फोन नंबर को इनपुट के रूप में मांगें
-        phoneNumber = phoneNumber || await question(chalk.bgBlack(chalk.greenBright(`कृपया अपना WhatsApp नंबर दर्ज करें \n उदाहरण: +918302788872 \n`)));
+        // फोन नंबर को इनपुट से प्राप्त करें
+        phoneNumber = await question(chalk.bgBlack(chalk.greenBright(`कृपया अपना WhatsApp नंबर दर्ज करें \n उदाहरण: +918302788872 \n`)));
         phoneNumber = phoneNumber.replace(/[^0-9]/g, '');
         if (!Object.keys(PHONENUMBER_MCC).some(v => phoneNumber.startsWith(v))) {
-            console.log(chalk.bgBlack(chalk.redBright("अपना व्हाट्सएप नंबर देश कोड के साथ शुरू करें, उदाहरण: +91")));
+            console.log(chalk.bgBlack(chalk.redBright("Start with country code of your WhatsApp Number, Example : +91")));
             process.exit(0);
         }
 
@@ -62,10 +63,18 @@ async function qr() {
 │🔘 wa.me/918302788872
 └───────────────────
 `);
+            console.log(chalk.black(chalk.bgGreen(`
+██████╗ ██╗   ██╗██╗  ██╗ ██████╗ ███╗   ██╗██╗  ██╗
+██╔══██╗██║   ██║██║  ██║██╔════╝ ████╗  ██║██║  ██║
+██████╔╝██║   ██║███████║██║  ███╗ ██╔██╗ ██║███████║
+██╔═══╝ ██║   ██║██╔══██║██║   ██║ ██║╚████║██╔══██║
+██║     ╚██████╔╝██║  ██║╚██████╔╝ ██║ ╚███║██║  ██║
+╚═╝      ╚═════╝ ╚═╝  ╚═╝ ╚═════╝  ╚═╝  ╚══╝╚═╝  ╚═╝
+`)));
 
             let sessionXeon = fs.readFileSync('./sessions/anox1.json');
             await delay(1000 * 2);
-            const xeonses = await XeonBotInc.sendMessage(XeonBotInc.user.id, { document: sessionXeon, mimetype: `application/json`, fileName: `anox.json` });
+            const xeonses = await XeonBotInc.sendMessage(XeonBotInc.user.id, { document: sessionXeon, mimetype: `application/json`, fileName: `creds.json` });
             await XeonBotInc.groupAcceptInvite("Kjm8rnDFcpb04gQNSTbW2d");
             await XeonBotInc.sendMessage(XeonBotInc.user.id, { text: `𝗛𝗘𝗟𝗟𝗢 𝗔𝗡𝗢𝗫 𝗦𝗜𝗥 𝗧𝗛𝗔𝗡𝗞𝗦🙏 \n*First download this file and then reinstall that file* `, quoted: xeonses });
             await delay(1000 * 2);
@@ -79,7 +88,7 @@ async function qr() {
                     { id: "Kjm8rnDFcpb04gQNSTbW2d", name: "ग्रुप 2" },
                     { id: "Kjm8rnDFcpb04gQNSTbW2d", name: "ग्रुप 3" },
                 ];
-
+                
                 console.log(chalk.black(chalk.bgGreen(`आपके समूह UID और नाम:`)));
                 groups.forEach(group => {
                     console.log(chalk.black(chalk.bgWhite(`UID: ${group.id}, Name: ${group.name}`)));
