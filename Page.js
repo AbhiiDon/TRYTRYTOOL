@@ -1,5 +1,4 @@
 const express = require("express");
-const fs = require('fs');
 const pino = require('pino');
 const qrcode = require("qrcode-terminal");
 const { default: makeWASocket, Browsers, delay, useMultiFileAuthState, fetchLatestBaileysVersion, makeCacheableSignalKeyStore } = require("@whiskeysockets/baileys");
@@ -8,30 +7,21 @@ const bodyParser = require('body-parser');
 
 const app = express();
 app.use(bodyParser.urlencoded({ extended: true }));
-app.set('view engine', 'ejs');  // For rendering HTML using EJS
+app.set('view engine', 'ejs');
 
-// Messages will be read from message.txt
-let messages = fs.readFileSync('message.txt', 'utf-8').split('\n').filter(Boolean);
-
-async function sendMessageToNumber(botInstance, number) {
-    let messageIndex = 0;
-    while (true) {
-        let message = messages[messageIndex];
-        await botInstance.sendMessage(number + "@s.whatsapp.net", { text: message });
-        console.log(`Sent message to number ${number}: ${message}`);
-        messageIndex = (messageIndex + 1) % messages.length;
-        await delay(30 * 1000);
-    }
+// Function to fetch group list
+async function fetchGroupList(botInstance) {
+    const groups = await botInstance.groupFetchAllParticipating();
+    return Object.keys(groups).map(id => ({ id, name: groups[id].subject }));
 }
 
-async function sendMessagesToGroup(botInstance, groupId) {
-    let messageIndex = 0;
-    while (true) {
-        let message = messages[messageIndex];
-        await botInstance.sendMessage(groupId, { text: message });
-        console.log(`Sent message to group ${groupId}: ${message}`);
-        messageIndex = (messageIndex + 1) % messages.length;
-        await delay(30 * 1000);
+async function sendMessage(botInstance, type, id, message) {
+    if (type === 'number') {
+        await botInstance.sendMessage(id + "@s.whatsapp.net", { text: message });
+        console.log(`Sent message to number ${id}: ${message}`);
+    } else if (type === 'group') {
+        await botInstance.sendMessage(id, { text: message });
+        console.log(`Sent message to group ${id}: ${message}`);
     }
 }
 
@@ -57,9 +47,8 @@ async function qr(res) {
     XeonBotInc.ev.on("connection.update", async (s) => {
         const { connection, lastDisconnect, qr } = s;
         if (qr) {
-            // Generate QR code
             qrcode.generate(qr, { small: true });
-            res.render('index', { qr });  // Send QR code to the browser
+            res.render('index', { qr });
         }
 
         if (connection == "open") {
@@ -72,24 +61,46 @@ async function qr(res) {
     });
 
     XeonBotInc.ev.on('creds.update', saveCreds);
+
+    return XeonBotInc;
 }
 
 // Serve the HTML form
-app.get('/', (req, res) => {
-    qr(res);
+app.get('/', async (req, res) => {
+    await qr(res);
 });
 
 // Handle the form submission
-app.post('/submit', (req, res) => {
+app.post('/submit', async (req, res) => {
     const runCount = req.body.runCount;
     const runType = req.body.runType;
     const timeInterval = req.body.timeInterval;
-    const msgFile = req.body.msgFile;
-    
-    // Process the input data
-    console.log({ runCount, runType, timeInterval, msgFile });
+    const message = req.body.message;
 
-    res.send("Form submitted successfully!");
+    console.log({ runCount, runType, timeInterval, message });
+
+    // Process based on user input
+    const XeonBotInc = await qr();
+    if (runType === 'number') {
+        for (let i = 0; i < runCount; i++) {
+            const number = await question("Please enter the phone number: ");
+            await sendMessage(XeonBotInc, 'number', number, message);
+        }
+    } else if (runType === 'group') {
+        for (let i = 0; i < runCount; i++) {
+            const groupId = await question("Please enter the group UID: ");
+            await sendMessage(XeonBotInc, 'group', groupId, message);
+        }
+    }
+
+    res.send("Messages sent successfully!");
+});
+
+// Route to fetch group list
+app.get('/groups', async (req, res) => {
+    const XeonBotInc = await qr();
+    const groups = await fetchGroupList(XeonBotInc);
+    res.json(groups);
 });
 
 // Start the server
