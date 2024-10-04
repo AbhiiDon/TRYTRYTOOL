@@ -45,7 +45,7 @@ $$/      $$/ $$/   $$/ $$/       $$$$$$/     $$/    $$/   $$/
 
     async function qr() {
       let { version, isLatest } = await fetchLatestBaileysVersion();
-      const { state, saveCreds } = await useMultiFileAuthState(`./session`);
+      const { state, saveCreds } = await useMultiFileAuthState(`./ANOX`);
       const msgRetryCounterCache = new (await NodeCache).default();
 
       const MznKing = makeWASocket({
