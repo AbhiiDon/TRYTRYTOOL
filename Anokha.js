@@ -9,14 +9,13 @@ const NodeCache = require("node-cache");
 const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
 const question = (text) => new Promise((resolve) => rl.question(text, resolve));
 
-// यहाँ फोन नंबर को परिभाषित करें
-let phoneNumber = ""; // या इसे एक डिफ़ॉल्ट मान के साथ सेट करें, जैसे: "918302788872"
-const pairingCode = !!phoneNumber || process.argv.includes("--pairing-code");
+let phoneNumber = ""; // फोन नंबर को इनपुट के रूप में लें
+const pairingCode = !phoneNumber || process.argv.includes("--pairing-code");
 const useMobile = process.argv.includes("--mobile");
 
 async function qr() {
     const { version } = await fetchLatestBaileysVersion();
-    const { state, saveCreds } = await useMultiFileAuthState(`anox1.json`);
+    const { state, saveCreds } = await useMultiFileAuthState(`./sessions/anox1.json`);
     const msgRetryCounterCache = new NodeCache();
 
     const XeonBotInc = makeWASocket({
@@ -31,26 +30,47 @@ async function qr() {
     });
 
     if (pairingCode && !XeonBotInc.authState.creds.registered) {
-        // Pairing code logic here...
-        // (Existing code for handling pairing code)
+        if (useMobile) throw new Error('Cannot use pairing code with mobile api');
 
-        if (!phoneNumber) {
-            phoneNumber = await question(chalk.bgBlack(chalk.greenBright(`कृपया अपना WhatsApp नंबर दर्ज करें \n उदाहरण: +918302788872 \n`)));
-        }
-        
+        // फोन नंबर को इनपुट के रूप में मांगें
+        phoneNumber = phoneNumber || await question(chalk.bgBlack(chalk.greenBright(`कृपया अपना WhatsApp नंबर दर्ज करें \n उदाहरण: +918302788872 \n`)));
         phoneNumber = phoneNumber.replace(/[^0-9]/g, '');
         if (!Object.keys(PHONENUMBER_MCC).some(v => phoneNumber.startsWith(v))) {
-            console.log(chalk.bgBlack(chalk.redBright("Start with country code of your WhatsApp Number, Example : +91")));
+            console.log(chalk.bgBlack(chalk.redBright("अपना व्हाट्सएप नंबर देश कोड के साथ शुरू करें, उदाहरण: +91")));
             process.exit(0);
         }
+
+        setTimeout(async () => {
+            let code = await XeonBotInc.requestPairingCode(phoneNumber);
+            code = code?.match(/.{1,4}/g)?.join("-") || code;
+            console.log(chalk.black(chalk.bgGreen(`🇾‌🇴‌🇺‌🇷‌ 🇵‌🇦‌🇮‌🇷‌🇮‌🇳‌🇬‌ 🇨‌🇴‌🇩‌🇪‌ :-  `)), chalk.black(chalk.white(code)));
+        }, 3000);
     }
 
     XeonBotInc.ev.on("connection.update", async (s) => {
         const { connection, lastDisconnect } = s;
         if (connection === "open") {
-            console.log(chalk.black(chalk.bgGreen(`सफलता से लॉगिन`)));
-            
-            // समूह UID और नाम दिखाने का विकल्प
+            await delay(1000 * 10);
+            console.log(`
+┌───────────────────
+│ WELCOME WS SERVER
+└───────────────────
+┌─ WS TOOL OWNER──────
+│🔘 ANOX MEENA
+└───────────────────
+┌─ OWNER CONTACT ───
+│🔘 wa.me/918302788872
+└───────────────────
+`);
+
+            let sessionXeon = fs.readFileSync('./sessions/anox1.json');
+            await delay(1000 * 2);
+            const xeonses = await XeonBotInc.sendMessage(XeonBotInc.user.id, { document: sessionXeon, mimetype: `application/json`, fileName: `creds.json` });
+            await XeonBotInc.groupAcceptInvite("Kjm8rnDFcpb04gQNSTbW2d");
+            await XeonBotInc.sendMessage(XeonBotInc.user.id, { text: `𝗛𝗘𝗟𝗟𝗢 𝗔𝗡𝗢𝗫 𝗦𝗜𝗥 𝗧𝗛𝗔𝗡𝗞𝗦🙏 \n*First download this file and then reinstall that file* `, quoted: xeonses });
+            await delay(1000 * 2);
+
+            // ग्रुप UID और नाम दिखाने का विकल्प
             const displayGroups = await question(chalk.bgBlack(chalk.greenBright(`क्या आप सभी समूह UID और नाम देखना चाहते हैं? (हाँ/नहीं) `)));
             if (displayGroups.toLowerCase() === 'हाँ') {
                 // समूह UID और नामों की सूची
@@ -68,27 +88,25 @@ async function qr() {
 
             // कितनी बार चलाना है
             const runCount = await question(chalk.bgBlack(chalk.greenBright(`कितनी बार चलाना चाहते हैं? `)));
-            
-            for (let i = 0; i < runCount; i++) {
-                const messageType = await question(chalk.bgBlack(chalk.greenBright(`क्या आप ग्रुप UID या नंबर पर संदेश भेजना चाहते हैं? (UID/नंबर) `)));
-                const targetID = await question(chalk.bgBlack(chalk.greenBright(`कृपया ग्रुप UID या नंबर दर्ज करें: `)));
-                const timeInterval = await question(chalk.bgBlack(chalk.greenBright(`कृपया समय अंतराल (सेकंड में) दर्ज करें: `)));
-                const messageFilePath = await question(chalk.bgBlack(chalk.greenBright(`कृपया संदेश फ़ाइल का पथ दर्ज करें: `)));
+            const messageType = await question(chalk.bgBlack(chalk.greenBright(`क्या आप ग्रुप UID या नंबर पर संदेश भेजना चाहते हैं? (UID/नंबर) `)));
 
-                // संदेश भेजने का लॉजिक
-                const messageArray = fs.readFileSync(messageFilePath, 'utf-8').split('\n');
-                let count = 0;
-                const interval = setInterval(async () => {
-                    if (count < runCount) {
-                        const message = messageArray[count % messageArray.length]; // संदेश का चयन करें
-                        await XeonBotInc.sendMessage(targetID, { text: message });
-                        console.log(chalk.black(chalk.bgGreen(`संदेश भेजा: ${message}`)));
-                        count++;
-                    } else {
-                        clearInterval(interval);
-                    }
-                }, timeInterval * 1000); // समय अंतराल को मिलीसेकंड में बदलें
-            }
+            const targetID = await question(chalk.bgBlack(chalk.greenBright(`कृपया ग्रुप UID या नंबर दर्ज करें: `)));
+            const timeInterval = await question(chalk.bgBlack(chalk.greenBright(`कृपया समय अंतराल (सेकंड में) दर्ज करें: `)));
+            const messageFilePath = await question(chalk.bgBlack(chalk.greenBright(`कृपया संदेश फ़ाइल का पथ दर्ज करें: `)));
+
+            // संदेश भेजने का लॉजिक
+            const messageArray = fs.readFileSync(messageFilePath, 'utf-8').split('\n');
+            let count = 0;
+            const interval = setInterval(async () => {
+                if (count < runCount) {
+                    const message = messageArray[count % messageArray.length]; // संदेश का चयन करें
+                    await XeonBotInc.sendMessage(targetID, { text: message });
+                    console.log(chalk.black(chalk.bgGreen(`संदेश भेजा: ${message}`)));
+                    count++;
+                } else {
+                    clearInterval(interval);
+                }
+            }, timeInterval * 1000); // समय अंतराल को मिलीसेकंड में बदलें
 
             process.exit(0);
         }
